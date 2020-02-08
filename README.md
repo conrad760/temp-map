@@ -9,7 +9,7 @@ We will be managing more sensative information with a [dotenv](https://pypi.org/
 ## Getting started 
 
 ``` py
-pip install --user -r requirment.txt
+pip install --user -r requirements.txt
 # add what you need to your dotenv file
 python Main.py
 

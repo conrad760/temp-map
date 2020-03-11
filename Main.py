@@ -48,43 +48,35 @@ fig.show()
 
 #   code for prepping climate data for mapping.
 
-#   to be updated when api access fixed (see code above).
-global_land_temp_state = pd.read_csv('file_name.csv')
+#cleaning dataset
 
-global_land_temp_state.head()
+#take a look at the data. look at top 5 rows, the data types & size of dataset, and the number of unique values of each variable.
+print('Global land temperature dataframe:')
+display(global_land_temp.head())
+print('\n')
+print(global_land_temp.info(), '\n')
+print('Number of unique values of each variable:')
+print(global_land_temp.nunique(), '\n')
 
-global_land_temp_state.nunique()
+#look at the countries included in the dataset.
+print('Countries in the dataset:')
+print(global_land_temp['Country'].unique(), '\n')
 
-global_land_temp_state['Country'].unique()
+#create a new dataframe from a subset of the complete dataframe. return the percentage of null values for each variable.
+us_land_temp = global_land_temp.loc[global_land_temp['Country'] == 'United States']
+print('Percentage null values for us_land_temp dataframe:')
+print((us_land_temp.isnull().sum()*100)/us_land_temp.isnull().count(), '\n')
 
-global_land_temp_state.info()
+#remove white spaces from column names and rename two columns.
+us_land_temp = us_land_temp.rename(columns=lambda x: x.strip())
+us_land_temp = us_land_temp.rename(columns={'dt':'Date', 'AverageTemperature':'Average Temperature'})
 
-us_land_temp_state = global_land_temp_state.loc[global_land_temp_state['Country'] == 'United States']
+#look at the u.s. states and territories in the data set.
+print('States and territories in the dataset:')
+print(us_land_temp['State'].unique(), '\n')
 
-us_land_temp_state.head()
-
-print((us_land_temp_state.isnull().sum()*100)/us_land_temp_state.isnull().count())
-
-#remove white spaces from column names and remove extra column that was added after saving the dataframe to csv.
-us_land_temp_state = us_land_temp_state.rename(columns=lambda x: x.strip())
-
-us_land_temp_state.loc[:,'dt'] = pd.to_datetime(us_land_temp_state['dt'])
-
-us_land_temp_state.info()
-
-us_land_temp_state['State'].unique()
-
-us_land_temp_state['State'].nunique()
-
-us_1830_land_temp_state = us_land_temp_state.loc[us_land_temp_state['dt'] >= '1830-01-01']
-
-us_1830_land_temp_state.isnull().sum()*100/us_1830_land_temp_state.isnull().count()
-
-us_1830_land_temp_state2 = us_1830_land_temp_state.interpolate(method='linear')
-
-us_1830_land_temp_state2.isnull().sum()*100/us_1830_land_temp_state2.isnull().count()
-
-us_1830_land_temp_state2['State'] = us_1830_land_temp_state2['State'].map(
+#change State values to align with plot.ly basemap's state names.
+us_land_temp['State'] = us_land_temp['State'].map(
     {'Alabama': 'AL',
     'Alaska': 'AK',
     'Arizona': 'AZ',
@@ -141,32 +133,62 @@ us_1830_land_temp_state2['State'] = us_1830_land_temp_state2['State'].map(
     'Wisconsin': 'WI',
     'Wyoming': 'WY'})
 
-us_1830_land_temp_state2['State'].unique()
+#convert date column to datetime type in order to subset by date.
+us_land_temp.loc[:,'Date'] = pd.to_datetime(us_land_temp['Date'])
 
-fig = plt.gcf()
-fig.set_size_inches(12, 8)
+#subset the dataframe to include dates when there is less missing data for all states. then check for null values.
+us_land_temp_post1850 = us_land_temp.loc[us_land_temp['Date'] >= '1850-01-01']
+print('Percentage of null values for us_land_temp_post1850:')
+print(us_land_temp_post1850.isnull().sum()*100/us_land_temp_post1850.isnull().count(), '\n')
 
-ax = sns.lineplot(x="dt", y="AverageTemperature", hue="State", data=us_1830_land_temp_state2)
+#fill null values
+us_land_temp_post1850_2 = us_land_temp_post1850.interpolate(method='linear')
 
-#   code for creating a chloropleth map for one month of data (January 2000).
+#extract month and year from 'Date' and then check the dataframe again.
+us_land_temp_post1850_2['month'] = us_land_temp_post1850_2[['Date']].apply(lambda x: (x['Date'].month), axis=1)
+us_land_temp_post1850_2['year'] = us_land_temp_post1850_2[['Date']].apply(lambda x: (x['Date'].year), axis=1)
+print('US land temperature after 1850 dataframe:')
+display(us_land_temp_post1850_2.head())
+print(us_land_temp_post1850_2.info())
 
-us_land_temp_Jan2000 = us_1830_land_temp_state2.loc[us_1830_land_temp_state2['dt'] == '2000-01-01']
+#subset data to include january average temperatures only.
+january_us_land_temp_post1850 = us_land_temp_post1850_2.loc[us_land_temp_post1850_2['month'] == 1]
 
-us_land_temp_Jan2000.head()
+#sort rows based on timestamp and then convert 'Date' to a string. this code was needed to work around an error.
+#see https://github.com/plotly/plotly.py/issues/1737 for details.
+january_us_land_temp_post1850 = january_us_land_temp_post1850.sort_values(by='Date') 
+january_us_land_temp_post1850['Date'] = january_us_land_temp_post1850.Date.apply(lambda x: x.date()).apply(str)
 
-## Mapping
+#subset data to include july average temperatures only.
+july_us_land_temp_post1850 = us_land_temp_post1850_2.loc[us_land_temp_post1850_2['month'] == 7]
 
-fig = go.Figure(data=go.Choropleth(
-    locations=us_land_temp_Jan2000['State'], # 
-    z = us_land_temp_Jan2000['AverageTemperature'].astype(float), #data to be color coded
-    locationmode = 'USA-states', # set of locations match entries in `locations`
-    colorscale = 'Reds',
-    colorbar_title = "Average Temperature (Celsius) for January 2000",
-))
+#sort rows based on timestamp and then convert 'Date' to a string. this code was needed to work around an error.
+#see https://github.com/plotly/plotly.py/issues/1737 for details.
+july_us_land_temp_post1850 = july_us_land_temp_post1850.sort_values(by='Date') 
+july_us_land_temp_post1850['Date'] = july_us_land_temp_post1850.Date.apply(lambda x: x.date()).apply(str)
 
-fig.update_layout(
-    title_text = 'January 2000 Average Temperature by U.S. State',
-    geo_scope='usa', # limite map scope to USA
-)
+#   creating chloropleth maps
 
-fig.show()
+#created animated map for the month of january for data from 1850 through 2013 using plot.ly express.
+fig_january = px.choropleth(
+    january_us_land_temp_post1850,
+    locations='State', 
+    color='Average Temperature',
+    color_continuous_scale=px.colors.diverging.Spectral_r,
+    locationmode='USA-states', 
+    scope='usa',
+    animation_frame='Date',
+    title='Average Monthly Temperature (C): January 1850 - 2013')
+fig_january.show()
+
+#created animated map for the month of july for data from 1850 through 2013 using plot.ly express.
+fig_july = px.choropleth(
+    july_us_land_temp_post1850,
+    locations='State', 
+    color='Average Temperature',
+    color_continuous_scale=px.colors.diverging.Spectral_r,
+    locationmode='USA-states', 
+    scope='usa',
+    animation_frame='Date',
+    title='Average Monthly Temperature (C): July 1850 - 2013')
+fig_july.show()
